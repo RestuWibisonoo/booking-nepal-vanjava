@@ -135,6 +135,41 @@ while ($room = $rooms_result->fetch_assoc()) {
     </div>
 </div>
 
+<!-- Modal Konfirmasi -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Konfirmasi Booking</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Apakah data booking sudah benar?</p>
+                <div class="booking-summary">
+                    <strong>Nama:</strong> <span id="summaryName">-</span><br>
+                    <strong>Telepon:</strong> <span id="summaryPhone">-</span><br>
+                    <strong>Check-in:</strong> <span id="summaryCheckin">-</span><br>
+                    <strong>Check-out:</strong> <span id="summaryCheckout">-</span><br>
+                    <strong>Jumlah Tamu:</strong> <span id="summaryGuests">-</span><br>
+                    <strong>Kamar:</strong> <span id="summaryRooms">-</span>
+                </div>
+                <div class="alert alert-warning mt-3">
+                    <small>
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Booking akan kadaluarsa otomatis dalam 24 jam jika belum melakukan pembayaran.
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Periksa Kembali</button>
+                <button type="button" class="btn btn-primary" onclick="proceedToPayment()">
+                    <i class="fas fa-credit-card"></i> Lanjutkan ke Pembayaran
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 function checkAvailability() {
     const checkin = document.getElementById('checkin_date').value;
@@ -157,35 +192,84 @@ document.addEventListener('DOMContentLoaded', function() {
     calendarEl.innerHTML = '<p class="text-center"><a href="calendar.php?homestay_id=<?php echo $homestay_id; ?>" class="btn btn-outline-primary btn-sm">Lihat Kalender Lengkap</a></p>';
 });
 
-// Form validation
+// Form validation and modal
 document.getElementById('bookingForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    // Validasi dasar
     const checkin = new Date(document.getElementById('checkin_date').value);
     const checkout = new Date(document.getElementById('checkout_date').value);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
     if (checkin < today) {
-        e.preventDefault();
         alert('Tanggal check-in tidak boleh kurang dari hari ini');
         return;
     }
     
     if (checkout <= checkin) {
-        e.preventDefault();
         alert('Tanggal check-out harus setelah tanggal check-in');
         return;
     }
     
     const selectedRooms = document.querySelectorAll('.room-checkbox:checked');
     if (selectedRooms.length === 0) {
-        e.preventDefault();
         alert('Pilih minimal 1 kamar');
         return;
     }
     
+    // Tampilkan modal konfirmasi
+    const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    modal.show();
+});
+
+// Fungsi untuk lanjutkan ke pembayaran
+function proceedToPayment() {
+    const submitBtn = document.getElementById('submitBtn');
+    const form = document.getElementById('bookingForm');
+    
     // Show loading
-    document.getElementById('submitBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...';
-    document.getElementById('submitBtn').disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengarahkan ke Pembayaran...';
+    submitBtn.disabled = true;
+    
+    // Submit form
+    form.submit();
+}
+
+// Update summary ketika modal dibuka
+document.getElementById('confirmModal').addEventListener('show.bs.modal', function() {
+    document.getElementById('summaryName').textContent = document.getElementById('user_name').value;
+    document.getElementById('summaryPhone').textContent = document.getElementById('user_phone').value;
+    document.getElementById('summaryCheckin').textContent = document.getElementById('checkin_date').value;
+    document.getElementById('summaryCheckout').textContent = document.getElementById('checkout_date').value;
+    document.getElementById('summaryGuests').textContent = document.getElementById('guests').value;
+    
+    // Summary rooms
+    const selectedRooms = Array.from(document.querySelectorAll('.room-checkbox:checked'))
+        .map(checkbox => {
+            const label = checkbox.nextElementSibling.textContent.split('(')[0].trim();
+            const code = checkbox.nextElementSibling.nextElementSibling.textContent;
+            return `${label} (${code})`;
+        });
+    document.getElementById('summaryRooms').textContent = selectedRooms.join(', ');
+});
+
+// Format tanggal untuk display yang lebih baik
+document.addEventListener('DOMContentLoaded', function() {
+    const checkinInput = document.getElementById('checkin_date');
+    const checkoutInput = document.getElementById('checkout_date');
+    
+    // Set min date to today
+    const today = new Date().toISOString().split('T')[0];
+    checkinInput.min = today;
+    
+    // Update checkout min date when checkin changes
+    checkinInput.addEventListener('change', function() {
+        checkoutInput.min = this.value;
+        if (checkoutInput.value && checkoutInput.value < this.value) {
+            checkoutInput.value = '';
+        }
+    });
 });
 </script>
 

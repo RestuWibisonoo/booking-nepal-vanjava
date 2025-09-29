@@ -16,7 +16,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die("Pilih minimal 1 kamar");
     }
 
-    // Check if rooms are available
+    // Validate dates
+    $checkin = new DateTime($checkin_date);
+    $checkout = new DateTime($checkout_date);
+    $today = new DateTime();
+    $today->setTime(0, 0, 0);
+
+    if ($checkin < $today) {
+        die("Tanggal check-in tidak boleh kurang dari hari ini");
+    }
+
+    if ($checkout <= $checkin) {
+        die("Tanggal check-out harus setelah tanggal check-in");
+    }
+
+    // Check room availability
+    foreach ($rooms as $room_id) {
+        $room_id = intval($room_id);
+        $availability_query = "SELECT COUNT(*) as count FROM bookings 
+                              WHERE JSON_CONTAINS(rooms, ?) 
+                              AND status IN ('pending', 'confirmed')
+                              AND ((checkin_date BETWEEN ? AND DATE_SUB(?, INTERVAL 1 DAY)) 
+                              OR (checkout_date BETWEEN DATE_ADD(?, INTERVAL 1 DAY) AND ?))";
+        
+        $stmt = $conn->prepare($availability_query);
+        $room_json = json_encode($room_id);
+        $stmt->bind_param("sssss", $room_json, $checkin_date, $checkout_date, $checkin_date, $checkout_date);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
+        
+        if ($row['count'] > 0) {
+            die("Maaf, salah satu kamar yang dipilih tidak tersedia pada tanggal tersebut.");
+        }
+    }
+
+    // Convert rooms array to JSON
     $rooms_json = json_encode($rooms);
 
     // Insert booking
@@ -29,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($stmt->execute()) {
         $booking_id = $stmt->insert_id;
         
-        // Get homestay data for redirect
+        // Get homestay payment URL
         $homestay_query = "SELECT payment_url FROM homestays WHERE id = ?";
         $stmt2 = $conn->prepare($homestay_query);
         $stmt2->bind_param("i", $homestay_id);
@@ -37,10 +72,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $result = $stmt2->get_result();
         $homestay = $result->fetch_assoc();
         
-        // Redirect to payment page with booking info
-        $redirect_url = $homestay['payment_url'] . "?booking_id=" . $booking_id . "&name=" . urlencode($user_name);
-        header("Location: " . $redirect_url);
-        exit();
+        if ($homestay && !empty($homestay['payment_url'])) {
+            // Redirect langsung ke payment URL tanpa parameter
+            header("Location: " . $homestay['payment_url']);
+            exit();
+        } else {
+            // Fallback jika tidak ada payment URL
+            echo "<script>
+                alert('Booking berhasil dengan ID: {$booking_id}! Silakan lanjutkan pembayaran.');
+                window.location.href = 'booking.php?id={$homestay_id}';
+            </script>";
+        }
     } else {
         die("Error: " . $stmt->error);
     }

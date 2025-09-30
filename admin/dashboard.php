@@ -9,141 +9,189 @@ if (!isset($_SESSION['admin_logged_in'])) {
     exit();
 }
 
-// Get homestays for this owner (if role is owner)
-if ($_SESSION['admin_role'] === 'owner') {
-    $homestay_query = "SELECT * FROM homestays WHERE owner_id = ?";
-    $stmt = $conn->prepare($homestay_query);
-    $stmt->bind_param("i", $_SESSION['admin_id']);
-    $stmt->execute();
-    $homestays_result = $stmt->get_result();
-    $homestays = [];
-    while ($homestay = $homestays_result->fetch_assoc()) {
-        $homestays[] = $homestay;
-    }
-    
-    // If owner has homestays, get bookings for their homestays
-    if (!empty($homestays)) {
-        $homestay_ids = array_column($homestays, 'id');
-        $placeholders = str_repeat('?,', count($homestay_ids) - 1) . '?';
-        
-        $bookings_query = "SELECT b.*, h.name as homestay_name 
-                          FROM bookings b 
-                          JOIN homestays h ON b.homestay_id = h.id 
-                          WHERE b.homestay_id IN ($placeholders) 
-                          ORDER BY b.created_at DESC";
-        $stmt = $conn->prepare($bookings_query);
-        $stmt->bind_param(str_repeat('i', count($homestay_ids)), ...$homestay_ids);
-        $stmt->execute();
-        $bookings_result = $stmt->get_result();
-    }
+// Get statistics
+$user_id = $_SESSION['admin_id'];
+$user_role = $_SESSION['admin_role'];
+
+// Query based on role
+if ($user_role == 'admin') {
+    // Admin can see all
+    $total_bookings_query = "SELECT COUNT(*) as total FROM bookings";
+    $pending_bookings_query = "SELECT COUNT(*) as total FROM bookings WHERE status = 'pending'";
+    $confirmed_bookings_query = "SELECT COUNT(*) as total FROM bookings WHERE status = 'confirmed'";
+    $total_homestays_query = "SELECT COUNT(*) as total FROM homestays";
 } else {
-    // Admin can see all bookings
-    $bookings_query = "SELECT b.*, h.name as homestay_name 
-                      FROM bookings b 
-                      JOIN homestays h ON b.homestay_id = h.id 
-                      ORDER BY b.created_at DESC";
-    $bookings_result = $conn->query($bookings_query);
+    // Owner can only see their homestays
+    $total_bookings_query = "SELECT COUNT(*) as total FROM bookings b 
+                            JOIN homestays h ON b.homestay_id = h.id 
+                            WHERE h.owner_id = $user_id";
+    $pending_bookings_query = "SELECT COUNT(*) as total FROM bookings b 
+                              JOIN homestays h ON b.homestay_id = h.id 
+                              WHERE h.owner_id = $user_id AND b.status = 'pending'";
+    $confirmed_bookings_query = "SELECT COUNT(*) as total FROM bookings b 
+                                JOIN homestays h ON b.homestay_id = h.id 
+                                WHERE h.owner_id = $user_id AND b.status = 'confirmed'";
+    $total_homestays_query = "SELECT COUNT(*) as total FROM homestays WHERE owner_id = $user_id";
 }
 
-// Update booking status
-if (isset($_POST['update_status'])) {
-    $booking_id = intval($_POST['booking_id']);
-    $status = $conn->real_escape_string($_POST['status']);
-    
-    $update_query = "UPDATE bookings SET status = ? WHERE id = ?";
-    $stmt = $conn->prepare($update_query);
-    $stmt->bind_param("si", $status, $booking_id);
-    
-    if ($stmt->execute()) {
-        $success = "Status booking berhasil diupdate!";
-    } else {
-        $error = "Error updating status: " . $stmt->error;
-    }
+// Execute queries
+$total_bookings = $conn->query($total_bookings_query)->fetch_assoc()['total'];
+$pending_bookings = $conn->query($pending_bookings_query)->fetch_assoc()['total'];
+$confirmed_bookings = $conn->query($confirmed_bookings_query)->fetch_assoc()['total'];
+$total_homestays = $conn->query($total_homestays_query)->fetch_assoc()['total'];
+
+// Recent bookings
+if ($user_role == 'admin') {
+    $recent_bookings_query = "SELECT b.*, h.name as homestay_name 
+                             FROM bookings b 
+                             JOIN homestays h ON b.homestay_id = h.id 
+                             ORDER BY b.created_at DESC 
+                             LIMIT 5";
+} else {
+    $recent_bookings_query = "SELECT b.*, h.name as homestay_name 
+                             FROM bookings b 
+                             JOIN homestays h ON b.homestay_id = h.id 
+                             WHERE h.owner_id = $user_id 
+                             ORDER BY b.created_at DESC 
+                             LIMIT 5";
 }
+$recent_bookings = $conn->query($recent_bookings_query);
 ?>
 
-<div class="main-content">
-    <div class="container-fluid">
-        <h2 class="my-4">Dashboard Booking</h2>
-        
-        <?php if (isset($success)): ?>
-            <div class="alert alert-success"><?php echo $success; ?></div>
-        <?php endif; ?>
-        
-        <?php if (isset($error)): ?>
-            <div class="alert alert-danger"><?php echo $error; ?></div>
-        <?php endif; ?>
-
-        <div class="card">
-            <div class="card-header">
-                <h5>Daftar Booking</h5>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Admin Nepal Van Java</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="main-content">
+        <div class="container-fluid">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Dashboard</h2>
+                <div class="text-muted">
+                    <i class="fas fa-calendar"></i> <?php echo date('d F Y'); ?>
+                </div>
             </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Homestay</th>
-                                <th>Nama Pemesan</th>
-                                <th>Telepon</th>
-                                <th>Kamar</th>
-                                <th>Check-in</th>
-                                <th>Check-out</th>
-                                <th>Status</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php while ($booking = $bookings_result->fetch_assoc()): 
-                                $rooms_arr = json_decode($booking['rooms'], true);
-                                $room_codes = [];
-                                foreach ($rooms_arr as $room_id) {
-                                    $room_query = "SELECT code_room FROM rooms WHERE id = ?";
-                                    $stmt = $conn->prepare($room_query);
-                                    $stmt->bind_param("i", $room_id);
-                                    $stmt->execute();
-                                    $room_result = $stmt->get_result();
-                                    if ($room = $room_result->fetch_assoc()) {
-                                        $room_codes[] = $room['code_room'];
-                                    }
-                                }
-                            ?>
-                            <tr>
-                                <td><?php echo $booking['id']; ?></td>
-                                <td><?php echo htmlspecialchars($booking['homestay_name']); ?></td>
-                                <td><?php echo htmlspecialchars($booking['user_name']); ?></td>
-                                <td><?php echo htmlspecialchars($booking['user_phone']); ?></td>
-                                <td><?php echo implode(", ", $room_codes); ?></td>
-                                <td><?php echo date('d M Y', strtotime($booking['checkin_date'])); ?></td>
-                                <td><?php echo date('d M Y', strtotime($booking['checkout_date'])); ?></td>
-                                <td>
-                                    <span class="badge bg-<?php 
-                                        echo $booking['status'] == 'confirmed' ? 'success' : 
-                                             ($booking['status'] == 'pending' ? 'warning' : 'secondary'); 
-                                    ?>">
-                                        <?php echo ucfirst($booking['status']); ?>
-                                    </span>
-                                </td>
-                                <td>
-                                    <form method="POST" class="d-inline">
-                                        <input type="hidden" name="booking_id" value="<?php echo $booking['id']; ?>">
-                                        <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
-                                            <option value="pending" <?php echo $booking['status'] == 'pending' ? 'selected' : ''; ?>>Pending</option>
-                                            <option value="confirmed" <?php echo $booking['status'] == 'confirmed' ? 'selected' : ''; ?>>Confirmed</option>
-                                            <option value="expired" <?php echo $booking['status'] == 'expired' ? 'selected' : ''; ?>>Expired</option>
-                                        </select>
-                                        <input type="hidden" name="update_status" value="1">
-                                    </form>
-                                </td>
-                            </tr>
-                            <?php endwhile; ?>
-                        </tbody>
-                    </table>
+
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4><?php echo $total_bookings; ?></h4>
+                                    <p>Total Booking</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-calendar-check fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4><?php echo $pending_bookings; ?></h4>
+                                    <p>Pending</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-clock fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4><?php echo $confirmed_bookings; ?></h4>
+                                    <p>Dikonfirmasi</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-check-circle fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4><?php echo $total_homestays; ?></h4>
+                                    <p>Homestay</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-hotel fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Bookings -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5>Booking Terbaru</h5>
+                            <a href="bookings.php" class="btn btn-sm btn-primary">Lihat Semua</a>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Homestay</th>
+                                            <th>Nama Pemesan</th>
+                                            <th>Check-in</th>
+                                            <th>Check-out</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php while ($booking = $recent_bookings->fetch_assoc()): ?>
+                                        <tr>
+                                            <td>#<?php echo $booking['id']; ?></td>
+                                            <td><?php echo htmlspecialchars($booking['homestay_name']); ?></td>
+                                            <td><?php echo htmlspecialchars($booking['user_name']); ?></td>
+                                            <td><?php echo date('d M Y', strtotime($booking['checkin_date'])); ?></td>
+                                            <td><?php echo date('d M Y', strtotime($booking['checkout_date'])); ?></td>
+                                            <td>
+                                                <span class="badge bg-<?php 
+                                                    echo $booking['status'] == 'confirmed' ? 'success' : 
+                                                         ($booking['status'] == 'pending' ? 'warning' : 'secondary'); 
+                                                ?>">
+                                                    <?php echo ucfirst($booking['status']); ?>
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        <?php endwhile; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<?php include 'sidebar.php'; ?>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</body>
+</html>

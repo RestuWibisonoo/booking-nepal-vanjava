@@ -1,0 +1,29 @@
+/ (root pembayaran.nepal-vanjava.com)
+│── config.php              
+│── index.php             # Form booking utama
+│── save-booking.php        
+│── calendar.php            
+│── konfirmasi-pembayaran.php
+│── auto-expire.php         
+│
+├── /admin
+│   ├── index.php              # Login
+│   │── dashboard.php          # Dashboard utama
+│   │── bookings.php           # Kelola booking
+│   │── homestays.php          # Kelola homestay (admin only)
+│   │── rooms.php              # Kelola kamar
+│   │── users.php              # Kelola user (admin only)
+│   │── logout.php             # Logout
+│   │── sidebar.php            # Sidebar navigation
+│   │── get_booking_details.php # AJAX handler untuk detail booking
+│   │── get_homestay_details.php # AJAX handler untuk detail homestay
+│   │── get_room_details.php   # AJAX handler untuk detail kamar
+│
+├── /layouts
+│   ├── header.php          # Header user (booking page)
+│   ├── footer.php          # Footer user
+│
+├── /assets
+│   ├── css/
+│   ├── js/
+│   ├── img/

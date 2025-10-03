@@ -80,14 +80,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Fallback jika tidak ada payment URL
             echo "<script>
                 alert('Booking berhasil dengan ID: {$booking_id}! Silakan lanjutkan pembayaran.');
-                window.location.href = 'booking.php?id={$homestay_id}';
+                window.location.href = 'index.php?id={$homestay_id}';
             </script>";
         }
     } else {
         die("Error: " . $stmt->error);
     }
 } else {
-    header("Location: booking.php");
+    header("Location: index.php");
     exit();
 }
 ?>

@@ -56,7 +56,7 @@ while ($booking = $bookings_result->fetch_assoc()) {
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h4>Kalender Ketersediaan - <?php echo htmlspecialchars($homestay['name']); ?></h4>
-                    <a href="booking.php?id=<?php echo $homestay_id; ?>" class="btn btn-primary">
+                    <a href="index.php?id=<?php echo $homestay_id; ?>" class="btn btn-primary">
                         <i class="fas fa-arrow-left"></i> Kembali ke Form Booking
                     </a>
                 </div>

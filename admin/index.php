@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     <div class="mt-3 text-center">
                         <small class="text-muted">
-                            Default Admin: admin@nepalvanjava.com / admin123
+                            Masukkan User dan Password dengan benar
                         </small>
                     </div>
                 </div>
